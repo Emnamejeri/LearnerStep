@@ -1,9 +1,10 @@
 import csv
 import random
+import os
 
 print("Welcome to LearnerStep\n\nYour pathway for a better learning experience.\n")
 user_name = input("Enter your name: ")
-question_count = 0  # Initialize the counter variable
+question_count = 0
 def select_activity():
     print(
         "Start by selecting the action you would like to perform and press the corresponding number:\n\n1.Add questions\n\n2.View Statistics\n\n3.Disable/enable questions\n\n4.Practice mode\n\n5.Test mode\n\n6.View profile\n"
@@ -26,12 +27,12 @@ def select_activity():
             session_number = int(input("Enter session number: "))
             test_mode("questions.csv", session_number)
         else:
-            print("You need to add at least 5 questions.")
+            print("You need to add at least 5 questions. Your current count is: ", question_count)
             select_activity()
     # elif user_input == 6:
     #     profile()
     else:
-        print("Invalid input. Please enter correct number.")
+        print("Invalid input. Please enter correct number.Your current count is: ", question_count)
 
 
 def add_questions():
@@ -45,11 +46,14 @@ def add_questions():
         writer = csv.writer(file)
 
         # Check if questions file already exists
-        file_exists = file.tell() != 0
+        file_exists = os.path.isfile("questions.csv")
 
         if not file_exists:
             writer.writerow(column_names)
-
+        if file_exists:
+            with open("questions.csv", mode="r") as file:
+                reader = csv.reader(file)
+                question_count = sum(1 for _ in reader) - 1  # Subtract 1 to exclude header
         while True:
             question_type = input(
                 "Write Quiz or FFText to start adding questions of the relevant type: "
@@ -57,7 +61,8 @@ def add_questions():
 
             if question_type == "Quiz":
                 quiz_question = input("Write a question: ")
-                quiz_id = input("Add a question ID (3 digits): ")
+                quiz_id = random.randint(100, 999)
+                print("Your question ID is: ", quiz_id)
                 quiz_question_choices = input("Write the question choices: ")
                 quiz_question_answer = input("Write the correct answer: ")
 
@@ -72,7 +77,8 @@ def add_questions():
 
             elif question_type == "Fftext":
                 ff_question = input("Write the question: ")
-                ff_id = input("Add a question ID (3 digits): ")
+                ff_id = random.randint(100, 999)
+                print("Your question ID is: ", ff_id)
                 ff_question_answer = input("Write the answer: ")
 
                 writer.writerow(["FFText", ff_id, ff_question, "", ff_question_answer])
@@ -93,6 +99,7 @@ def add_questions():
             
 
 def practice_mode(file_path):
+    global question_count
     global user_name
     print("Let's start learning", user_name, "!!!!")
     print("Remember you can always exit the section by writing quit \n")
@@ -150,6 +157,7 @@ def weighted_choice(questions, incorrect_questions):
 def test_mode(file_path, session_number):
     print("You accessed the testing section!")
     student_score = []
+    global question_count
 
     with open(file_path, "r") as file:
         questions = list(csv.DictReader(file))
