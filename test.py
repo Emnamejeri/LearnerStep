@@ -3,6 +3,7 @@ import random
 import os
 import datetime
 
+
 class LearnerStep:
     def __init__(self):
         self.question_count = 0
@@ -58,7 +59,9 @@ class LearnerStep:
                 session_date = datetime.date.today()
                 session_time = datetime.datetime.now().strftime("%H:%M")
                 test_mode = TestMode(learner_step)
-                test_mode.start("questions.csv", session_number, session_date, session_time)
+                test_mode.start(
+                    "questions.csv", session_number, session_date, session_time
+                )
             else:
                 print(
                     "You need to add at least 5 questions. Your current count is:",
@@ -217,6 +220,8 @@ class PracticeMode:
     def weighted_choice(self, questions, incorrect_questions):
         weights = [1 if q in incorrect_questions else 0.1 for q in questions]
         return random.choices(questions, weights=weights)[0]
+
+
 class TestMode:
     def __init__(self, learner_step):
         self.learner_step = learner_step
@@ -237,6 +242,12 @@ class TestMode:
                 question_text = current_question["Question"]
                 question_choices = current_question["Choices"]
                 question_answer = current_question["Answer"]
+                number_of_attempts = int(
+                    current_question.get("Number of Attempts", "0")
+                )
+                number_of_correct_attempts = int(
+                    current_question.get("Number of Correct Attempts", "0")
+                )
 
                 print("This question is of type", question_type)
                 print("Question:", question_text)
@@ -257,7 +268,10 @@ class TestMode:
                     print("That's correct! Well done")
                     student_score.append(current_question)
                     questions.remove(current_question)
+                    number_of_correct_attempts += 1
+                    number_of_attempts += 1
                 elif response == "return":
+                    number_of_attempts += 1
                     print("Saving your answers...")
                     print(
                         "Test session terminated. Your score is",
@@ -270,7 +284,9 @@ class TestMode:
                         writer = csv.writer(results_file)
                         if results_file.tell() == 0:  # Check if the file is empty
                             writer.writerow(["final score", "round", "date", "time"])
-                        writer.writerow([final_score, session_number, session_date, session_time])
+                        writer.writerow(
+                            [final_score, session_number, session_date, session_time]
+                        )
 
                     print("Results saved in results.txt.")
 
@@ -281,25 +297,35 @@ class TestMode:
                 else:
                     print("Sorry,That's incorrect!")
                     questions.remove(current_question)
+                    number_of_attempts += 1
                 print()
-
+                current_question["Number of Attempts"] = str(number_of_attempts)
+                current_question["Number of Correct Attempts"] = str(
+                    number_of_correct_attempts
+                )
         if not session_completed:  # Conditionally print the line
             print("Test session completed. Your score is", final_score, "%")
             print("Results saved in results.txt.")
 
-        with open("results.txt", "a") as results_file:
-            writer = csv.writer(results_file)
-            if results_file.tell() == 0:  # Check if the file is empty
-                writer.writerow(["final score", "round", "date", "time"])
-            writer.writerow([final_score, session_number, session_date, session_time])
+        # Update the header row with the new column names
+        if len(questions) > 0:
+            fieldnames = list(questions[0].keys())
+            fieldnames.insert(5, "Number of Attempts")
+            fieldnames.insert(6, "Number of Correct Attempts")
+        else:
+            fieldnames = ["Number of Attempts", "Number of Correct Attempts"]
+
+        # Write the updated questions back to the CSV file
+        with open(file_path, "a", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=fieldnames)
+            writer.writeheader()  # Write the updated header row
+
+            # Write the updated question data
+            writer.writerows(questions)
 
         learner_step = LearnerStep()
         learner_step.question_count = final_score  # Update question count
         self.learner_step.select_activity()
-
-
-
-
 
 
 class QuestionsSetup:
@@ -444,7 +470,6 @@ class ViewStatistics:
                     except ValueError:
                         pass
         return times_shown
-
 
     def get_correct_percentage(self, question_id):
         total_attempts = 0
