@@ -35,20 +35,21 @@ class TestLearnerStep(unittest.TestCase):
     def test_select_activity(self):
         learner_step = LearnerStep()
         user_input = 1
-        add_questions = AddQuestions()
+        add_questions = AddQuestions( user_name = "abc")
         self.assertIsNone(learner_step.select_activity())
 
 
 class TestAddQuestions(unittest.TestCase):
     def test_start(self):
+        user_names = "abc"
         learner_step = LearnerStep()
-        add_questions = AddQuestions()
+        add_questions = AddQuestions(user_name = user_names)
 
         learner_step.select_activity = lambda: None
         add_questions.input = lambda prompt: "Quiz"
         add_questions.print = lambda text: None
 
-        question_count = add_questions.start(0, learner_step)
+        question_count = add_questions.start(0, learner_step, user_name = user_names)
         self.assertEqual(question_count, 1)
 
 class TestQuestionsSetup(unittest.TestCase):
