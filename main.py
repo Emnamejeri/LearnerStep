@@ -7,10 +7,18 @@ import datetime
 class LearnerStep:
     def __init__(self):
         self.question_count = 0
+        self.user_name = ""
 
     def start(self):
         print(
             "Welcome to LearnerStep\n\nYour pathway for a better learning experience.\n"
+        )
+        user_name = input("Enter your Name: ")
+        self.user_name = user_name
+        print(
+            "Welcome",
+            user_name,
+            "\nMake sure to add the questions, decide on their status then you can start practicing and testing your knowledge!",
         )
         self.load_question_count()
         self.select_activity()
@@ -19,7 +27,7 @@ class LearnerStep:
         if os.path.isfile("questions.csv"):
             with open("questions.csv", "r") as file:
                 reader = csv.reader(file)
-                next(reader)  
+                next(reader)
                 self.question_count = sum(1 for _ in reader)
         else:
             self.question_count = 0
@@ -28,7 +36,7 @@ class LearnerStep:
         if os.path.isfile("questionstatus.csv"):
             with open("questionstatus.csv", "r") as file:
                 reader = csv.reader(file)
-                next(reader)  
+                next(reader)
                 return sum(1 for row in reader if row[1] == "enabled")
         else:
             return 0
@@ -45,20 +53,20 @@ class LearnerStep:
             return
 
         if user_input == 1:
-            add_questions = AddQuestions()
-            self.question_count = add_questions.start(self.question_count, self)
+            add_questions = AddQuestions(self.user_name)
+            self.question_count = add_questions.start(
+                self.question_count, self, self.user_name
+            )
         elif user_input == 2:
             self.view_statistics = ViewStatistics()
             self.view_statistics.show()
         elif user_input == 3:
             disable_enable_questions = QuestionsSetup(self)
-            self.disable_enable_questions = disable_enable_questions.start(
-                "questions.csv", "questionstatus.csv"
-            )
+            disable_enable_questions.setup("questions.csv", "questionstatus.csv")
         elif user_input == 4:
             enabled_question_count = self.get_enabled_question_count()
             if enabled_question_count >= 5:
-                practice_mode = PracticeMode(self)
+                practice_mode = PracticeMode(self, self.user_name)
                 practice_mode.start("questions.csv")
             else:
                 print("You need to enable at least 5 questions.")
@@ -69,32 +77,30 @@ class LearnerStep:
                 session_number = int(input("Enter session number: "))
                 session_date = datetime.date.today()
                 session_time = datetime.datetime.now().strftime("%H:%M")
-                test_mode = TestMode(learner_step)
+                test_mode = TestMode(learner_step, self.user_name)
                 test_mode.start(
                     "questions.csv",
                     "questionstatus.csv",
                     session_number,
                     session_date,
                     session_time,
+                    self.user_name,
                 )
 
             else:
                 print("You need to enable at least 5 questions.")
                 self.select_activity()
-        else:
-            print(
-                "Invalid input. Please enter a correct number. Your current count is:",
-                self.question_count,
-            )
 
 
 class AddQuestions:
-    def start(self, question_count, learner_step):
-        learner_name = input("Enter your name: ")
+    def __init__(self, user_name):
+        self.user_name = user_name
+
+    def start(self, question_count, learner_step, user_name):
         print(
             "New session starting...\n",
             "Learner is ",
-            learner_name,
+            user_name,
             "\n",
             "Remember you need to add at least 5 different questions - Good luck",
         )
@@ -178,9 +184,6 @@ class QuestionsSetup:
     def __init__(self, learner_step):
         self.learner_step = learner_step
 
-    def start(self, input_file_path, output_file_path):
-        self.setup(input_file_path, output_file_path)
-
     def setup(self, input_file_path, output_file_path):
         print("You accessed the questions setup section")
 
@@ -261,19 +264,24 @@ class QuestionsSetup:
 
 
 class PracticeMode:
-    def __init__(self, learner_step):
+    def __init__(self, learner_step, user_name):
         self.learner_step = learner_step
+        self.user_name = user_name
 
     def start(self, file_path):
         print("Let's start learning!!!!")
-        print("Remember you can always exit the section by writing return\n")
+        print(
+            "Remember",
+            self.user_name,
+            "you can always exit the section by writing return\n",
+        )
         student_score = []
         incorrect_questions = []
         question_status = {}
 
         with open("questionstatus.csv", "r") as status_file:
             status_reader = csv.reader(status_file)
-            header = next(status_reader)  # Skip the header row
+            header = next(status_reader)
             question_status = {row[0]: row[1] for row in status_reader}
 
         with open(file_path, "r") as file:
@@ -328,19 +336,74 @@ class PracticeMode:
                 print()
 
     def weighted_choice(self, questions, incorrect_questions):
-        weights = [1 if q in incorrect_questions else 0.3 for q in questions]
+        weights = [1 if q in incorrect_questions else 0.2 for q in questions]
         return random.choices(questions, weights=weights)[0]
 
 
+
+
+    def update_question_stats(self, student_score):
+        stats_file_path = "questionstats.csv"
+        fieldnames = ["ID", "Attempts", "Correct Attempts"]
+        stats_data = []
+
+        try:
+            with open(stats_file_path, "r") as stats_file:
+                reader = csv.DictReader(stats_file)
+                stats_data = list(reader)
+
+        except FileNotFoundError:
+            print("Stats file not found.")
+
+        for question in student_score:
+            question_id = question["Question ID"]
+            question_found = False
+
+            for row in stats_data:
+                if row["ID"] == question_id:
+                    attempts = int(row["Attempts"])
+                    correct_attempts = int(row["Correct Attempts"])
+                    attempts += 1
+                    if question_id in [q["Question ID"] for q in student_score]:
+                        correct_attempts += 1
+                    row["Attempts"] = str(attempts)
+                    row["Correct Attempts"] = str(correct_attempts)
+                    question_found = True
+                    break
+
+            if not question_found:
+                stats_data.append(
+                    {
+                        "ID": question_id,
+                        "Attempts": "1",
+                        "Correct Attempts": "1"
+                        if question_id in [q["Question ID"] for q in student_score]
+                        else "0",
+                    }
+                )
+
+        with open(stats_file_path, "w", newline="") as stats_file:
+            writer = csv.DictWriter(stats_file, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(stats_data)
+
 class TestMode:
-    def __init__(self, learner_step):
+    def __init__(self, learner_step, user_name):
         self.learner_step = learner_step
+        self.user_name = user_name
 
     def start(
-        self, file_path, status_file_path, session_number, session_date, session_time
+        self,
+        file_path,
+        status_file_path,
+        session_number,
+        session_date,
+        session_time,
+        user_name,
     ):
-        print("You accessed the testing section!")
-        print("Remember you can always exit the section by writing return\n")
+        print("Hello", self.user_name, "You accessed the testing section!")
+        print("Remember you can always exit by writing return\n")
+        num_questions = int(input("Enter the number of questions you would like to answer (5 is minimum): "))
         student_score = []
         session_terminated = False
 
@@ -354,11 +417,10 @@ class TestMode:
                 if status["status"] == "enabled":
                     enabled_questions.append(current_question)
 
-            total_questions = len(
-                enabled_questions
-            )  # Retrieve total number of enabled questions
+            total_questions = min(len(enabled_questions), num_questions)
+            questions_answered = 0
 
-            while enabled_questions:
+            while enabled_questions and questions_answered < total_questions:
                 current_question = random.choice(enabled_questions)
                 question_type = current_question["Question Type"]
                 question_id = current_question["Question ID"]
@@ -374,48 +436,50 @@ class TestMode:
 
                 response = input("Please enter your response:\n").lower()
 
-                if len(student_score) == total_questions:
-                    print("You answered all questions.")
-                    break  # Exit the loop
+                if response == "return":
+                    print("Test session terminated by student. Exiting the test section...")
+                    session_terminated = True
+                    break
+
+                questions_answered += 1
 
                 if response == question_answer:
                     print("That's correct! Well done")
                     student_score.append(current_question)
                     enabled_questions.remove(current_question)
-                elif response == "return":
-                    print("Saving your answers...")
-                    print("Test session terminated. Exiting the test section...")
-                    session_terminated = True
-                    break
                 else:
                     print("Sorry, That's incorrect!")
                     enabled_questions.remove(current_question)
 
                 print()
 
-            correct_answers = len(student_score)  # Count the number of correct answers
+            correct_answers = len(student_score)
+            final_score = round((correct_answers / total_questions) * 100, 2)
 
-            final_score = round(
-                (correct_answers / total_questions) * 100, 2
-            )  # Calculate final score
-
-            self.update_question_stats(
-                student_score
-            )  # Pass the entire student_score list
+            self.update_question_stats(student_score)
 
         if session_terminated:
             return
 
         print("Test session completed. Your score is", final_score, "%")
+        print("You can see your session details in the Results file")
 
         with open("results.txt", "a") as results_file:
             writer = csv.writer(results_file)
-            if results_file.tell() == 0:  # Check if the file is empty
-                writer.writerow(["final score", "round", "date", "time"])
-            writer.writerow([final_score, session_number, session_date, session_time])
+            if results_file.tell() == 0:
+                writer.writerow(["final score", "round", "date", "time", "student"])
+            writer.writerow(
+                [
+                    final_score,
+                    session_number,
+                    session_date,
+                    session_time,
+                    user_name,
+                ]
+            )
 
         learner_step = LearnerStep()
-        learner_step.question_count = final_score  # Update question count
+        learner_step.question_count = final_score
         self.learner_step.select_activity()
 
     def update_question_stats(self, student_score):
@@ -487,6 +551,7 @@ class ViewStatistics:
                 question_text = question_row["Question"]
                 question_answer = question_row["Answer"]
 
+
                 question_status = question_status_dict.get(question_id, "disabled")
 
                 question_stats = {}
@@ -510,6 +575,7 @@ class ViewStatistics:
 if __name__ == "__main__":
     learner_step = LearnerStep()
     learner_step.start()
+
 
 
 # link to the part3 project below
